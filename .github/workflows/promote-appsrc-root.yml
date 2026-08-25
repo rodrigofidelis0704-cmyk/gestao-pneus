@@ -1,6 +1,7 @@
 name: Promote appsrc to root
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - fix/troca-rodizio-estoque
@@ -12,7 +13,6 @@ permissions:
 
 jobs:
   promote:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app components lib prisma package.json tsconfig.json next-env.d.ts next.config.js next.config.mjs 2>/dev/null || true
+          git add app components lib prisma package.json tsconfig.json next-env.d.ts 2>/dev/null || true
+          if [ -f next.config.js ]; then git add next.config.js; fi
+          if [ -f next.config.mjs ]; then git add next.config.mjs; fi
           git commit -m "Promote extracted Next.js app to root for preview" || exit 0
           git push origin HEAD:fix/troca-rodizio-estoque
