@@ -1,0 +1,38 @@
+name: Promote appsrc to root
+
+on:
+  push:
+    branches:
+      - fix/troca-rodizio-estoque
+    paths:
+      - '.github/workflows/promote-appsrc-root.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/troca-rodizio-estoque
+      - name: Copy extracted Next.js app to repository root
+        run: |
+          cp -a appsrc/app .
+          cp -a appsrc/components .
+          cp -a appsrc/lib .
+          cp -a appsrc/prisma .
+          cp appsrc/package.json ./package.json
+          cp appsrc/tsconfig.json ./tsconfig.json
+          cp appsrc/next-env.d.ts ./next-env.d.ts
+          if [ -f appsrc/next.config.js ]; then cp appsrc/next.config.js ./next.config.js; fi
+          if [ -f appsrc/next.config.mjs ]; then cp appsrc/next.config.mjs ./next.config.mjs; fi
+      - name: Commit root application
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app components lib prisma package.json tsconfig.json next-env.d.ts next.config.js next.config.mjs 2>/dev/null || true
+          git commit -m "Promote extracted Next.js app to root for preview" || exit 0
+          git push origin HEAD:fix/troca-rodizio-estoque
