@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PerfilUsuario { ADMINISTRADOR GESTOR OPERADOR CONSULTA }
+enum StatusPneu { NOVO USADO CONSERTO REFORMADO EM_REFORMA EM_TRANSFERENCIA SUCATA }
+enum TipoPosicao { RODANTE ESTEPE }
+enum LadoPosicao { ESQUERDO DIREITO }
+enum LocalizacaoLateral { INTERNO EXTERNO }
+enum TipoOrigemVida { AQUISICAO REFORMA }
+enum StatusVida { ATIVA ENCERRADA }
+enum OrigemHodometro { MANUAL MONTAGEM DESMONTAGEM INSPECAO IMPORTACAO TELEMETRIA }
+enum TipoFotoPneu { CADASTRO INSPECAO AVARIA REFORMA DESCARTE OUTRO }
+enum TipoEixoMaterial { DIRECIONAL EIXO_LIVRE TRACAO MAQUINA OUTRO }
+enum StatusLote { ABERTO ENVIADO PARCIAL CONCLUIDO CANCELADO }
+enum ResultadoReforma { APROVADO REPROVADO }
+enum ClassificacaoPerda { OPERACIONAL ESTRUTURAL_FADIGA ERRO_MANUTENCAO }
+enum StatusInspecao { VERDE LARANJA AMARELO CRITICO }
+
+model Empresa {
+  id String @id @default(uuid())
+  nome String
+  ativo Boolean @default(true)
+  unidades Unidade[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("empresas")
+}
+
+model Unidade {
+  id String @id @default(uuid())
+  empresaId String
+  codigo String
+  nome String
+  ativo Boolean @default(true)
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  estoques Estoque[]
+  usuarios UsuarioUnidade[]
+  veiculos Veiculo[]
+  pneusOrigem Pneu[] @relation("PneuUnidadeOrigem")
+  entradasEstoque EntradaEstoque[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([empresaId, codigo])
+  @@map("unidades")
+}
+
+model Estoque {
+  id String @id @default(uuid())
+  unidadeId String
+  codigo String
+  nome String
+  ativo Boolean @default(true)
+  unidade Unidade @relation(fields: [unidadeId], references: [id])
+  pneus Pneu[] @relation("PneuEstoqueAtual")
+  entradas EntradaEstoque[]
+  movOrigem MovimentacaoPneu[] @relation("MovEstoqueOrigem")
+  movDestino MovimentacaoPneu[] @relation("MovEstoqueDestino")
+  lotesOrigem LoteTransferencia[] @relation("LoteEstoqueOrigem")
+  lotesDestino LoteTransferencia[] @relation("LoteEstoqueDestino")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([unidadeId, codigo])
+  @@map("estoques")
+}
+
+model Usuario {
+  id String @id @default(uuid())
+  nome String
+  email String @unique
+  senhaHash String
+  ativo Boolean @default(true)
+  unidades UsuarioUnidade[]
+  pneusCadastrados Pneu[] @relation("PneuUsuarioCadastro")
+  entradas EntradaEstoque[]
+  montagensRealizadas MontagemPneu[] @relation("MontagemUsuario")
+  desmontagensRealizadas MontagemPneu[] @relation("DesmontagemUsuario")
+  leiturasHodometro LeituraHodometro[]
+  movimentacoes MovimentacaoPneu[]
+  fotos FotoPneu[]
+  auditorias Auditoria[]
+  inspecoes InspecaoPneu[]
+  calibragens CalibragemEquipamento[]
+  lotesReforma LoteReforma[]
+  lotesTransferencia LoteTransferencia[]
+  analisesSucata AnaliseSucata[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("usuarios")
+}
+
+model UsuarioUnidade {
+  usuarioId String
+  unidadeId String
+  perfil PerfilUsuario
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  unidade Unidade @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
+  @@id([usuarioId, unidadeId])
+  @@map("usuario_unidades")
+}
+
+model Marca { id String @id @default(uuid()) nome String @unique ativo Boolean @default(true) modelos ModeloPneu[] pneus Pneu[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@map("marcas") }
+model ModeloPneu { id String @id @default(uuid()) marcaId String nome String ativo Boolean @default(true) marca Marca @relation(fields:[marcaId], references:[id]) pneus Pneu[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@unique([marcaId,nome]) @@map("modelos_pneu") }
+model MedidaPneu { id String @id @default(uuid()) descricao String @unique ativo Boolean @default(true) materiais Material[] pneus Pneu[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@map("medidas_pneu") }
+model Aplicacao { id String @id @default(uuid()) codigo String @unique descricao String ativo Boolean @default(true) materiais Material[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@map("aplicacoes") }
+
+model Material {
+  id String @id @default(uuid())
+  codigo String @unique
+  descricao String
+  medidaId String?
+  aplicacaoId String?
+  tipoEixo TipoEixoMaterial
+  ativo Boolean @default(true)
+  medida MedidaPneu? @relation(fields:[medidaId], references:[id])
+  aplicacao Aplicacao? @relation(fields:[aplicacaoId], references:[id])
+  pneus Pneu[] @relation("PneuMaterialAtual")
+  itensEntrada EntradaItem[]
+  vidasInicio VidaPneu[] @relation("VidaMaterialInicio")
+  vidasFim VidaPneu[] @relation("VidaMaterialFim")
+  reformaItens LoteReformaItem[] @relation("ReformaMaterialNovo")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("materiais")
+}
+
+model TipoEquipamento { id String @id @default(uuid()) nome String @unique possuiHodometro Boolean @default(true) ativo Boolean @default(true) veiculos Veiculo[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@map("tipos_equipamento") }
+model ConfiguracaoChassi { id String @id @default(uuid()) codigo String @unique descricao String quantidadeEixos Int ativo Boolean @default(true) posicoes PosicaoConfiguracao[] veiculos Veiculo[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@map("configuracoes_chassi") }
+model PosicaoConfiguracao { id String @id @default(uuid()) configuracaoChassiId String codigo String numeroEixo Int? lado LadoPosicao? localizacaoLateral LocalizacaoLateral? tipoPosicao TipoPosicao rodante Boolean @default(true) ordemVisual Int configuracao ConfiguracaoChassi @relation(fields:[configuracaoChassiId], references:[id], onDelete:Cascade) montagens MontagemPneu[] createdAt DateTime @default(now()) updatedAt DateTime @updatedAt @@unique([configuracaoChassiId,codigo]) @@map("posicoes_configuracao") }
+
+model Veiculo {
+  id String @id @default(uuid())
+  unidadeId String
+  idFrota String
+  placa String?
+  modelo String
+  ano Int?
+  tipoEquipamentoId String
+  configuracaoChassiId String
+  hodometroAtual Decimal? @db.Decimal(12,1)
+  horimetroAtual Decimal? @db.Decimal(12,1)
+  ativo Boolean @default(true)
+  unidade Unidade @relation(fields:[unidadeId], references:[id])
+  tipoEquipamento TipoEquipamento @relation(fields:[tipoEquipamentoId], references:[id])
+  configuracaoChassi ConfiguracaoChassi @relation(fields:[configuracaoChassiId], references:[id])
+  montagens MontagemPneu[]
+  leiturasHodometro LeituraHodometro[]
+  calibragens CalibragemEquipamento[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([unidadeId,idFrota])
+  @@index([placa])
+  @@map("veiculos")
+}
+
+model Fornecedor {
+  id String @id @default(uuid()) nome String documento String? ativo Boolean @default(true)
+  entradas EntradaEstoque[] vidasReformadas VidaPneu[] @relation("VidaFornecedorReforma") lotesReforma LoteReforma[]
+  createdAt DateTime @default(now()) updatedAt DateTime @updatedAt
+  @@map("fornecedores")
+}
+
+model Pneu {
+  id String @id @default(uuid())
+  numeroFogo String @unique
+  unidadeOrigemId String
+  estoqueAtualId String?
+  materialAtualId String
+  marcaId String
+  modeloId String
+  medidaId String
+  dot String?
+  loteEstoque String?
+  milimetragemOriginal Decimal @db.Decimal(5,2)
+  statusAtual StatusPneu @default(NOVO)
+  dataCadastro DateTime @default(now())
+  usuarioCadastroId String
+  ativo Boolean @default(true)
+  unidadeOrigem Unidade @relation("PneuUnidadeOrigem", fields:[unidadeOrigemId], references:[id])
+  estoqueAtual Estoque? @relation("PneuEstoqueAtual", fields:[estoqueAtualId], references:[id])
+  materialAtual Material @relation("PneuMaterialAtual", fields:[materialAtualId], references:[id])
+  marca Marca @relation(fields:[marcaId], references:[id])
+  modelo ModeloPneu @relation(fields:[modeloId], references:[id])
+  medida MedidaPneu @relation(fields:[medidaId], references:[id])
+  usuarioCadastro Usuario @relation("PneuUsuarioCadastro", fields:[usuarioCadastroId], references:[id])
+  vidas VidaPneu[] entradaItens EntradaItem[] montagens MontagemPneu[] movimentacoes MovimentacaoPneu[] fotos FotoPneu[] inspecoes InspecaoPneu[] reformaItens LoteReformaItem[] transferenciaItens LoteTransferenciaItem[] analisesSucata AnaliseSucata[]
+  createdAt DateTime @default(now()) updatedAt DateTime @updatedAt
+  @@index([estoqueAtualId,statusAtual])
+  @@map("pneus")
+}
+
+model EntradaEstoque {
+  id String @id @default(uuid()) unidadeId String estoqueId String numeroNota String fornecedorId String? dataNota DateTime valorTotal Decimal? @db.Decimal(14,2) usuarioId String
+  unidade Unidade @relation(fields:[unidadeId], references:[id]) estoque Estoque @relation(fields:[estoqueId], references:[id]) fornecedor Fornecedor? @relation(fields:[fornecedorId], references:[id]) usuario Usuario @relation(fields:[usuarioId], references:[id]) itens EntradaItem[]
+  createdAt DateTime @default(now()) updatedAt DateTime @updatedAt
+  @@index([numeroNota]) @@map("entradas_estoque")
+}
+model EntradaItem { id String @id @default(uuid()) entradaId String pneuId String materialId String valorUnitario Decimal @db.Decimal(14,2) entrada EntradaEstoque @relation(fields:[entradaId], references:[id], onDelete:Cascade) pneu Pneu @relation(fields:[pneuId], references:[id]) material Material @relation(fields:[materialId], references:[id]) @@unique([entradaId,pneuId]) @@map("entrada_itens") }
+
+model VidaPneu {
+  id String @id @default(uuid()) pneuId String numeroVida Int tipoOrigem TipoOrigemVida dataInicio DateTime dataFim DateTime? valorInvestimento Decimal @db.Decimal(14,2) kmAcumulado Decimal @default(0) @db.Decimal(14,1) status StatusVida @default(ATIVA) fornecedorReformaId String? materialInicioId String materialFimId String? observacao String?
+  pneu Pneu @relation(fields:[pneuId], references:[id], onDelete:Cascade) fornecedorReforma Fornecedor? @relation("VidaFornecedorReforma", fields:[fornecedorReformaId], references:[id]) materialInicio Material @relation("VidaMaterialInicio", fields:[materialInicioId], references:[id]) materialFim Material? @relation("VidaMaterialFim", fields:[materialFimId], references:[id]) montagens MontagemPneu[]
+  createdAt DateTime @default(now()) updatedAt DateTime @updatedAt
+  @@unique([pneuId,numeroVida]) @@map("vidas_pneu")
+}
+
+model MontagemPneu {
+  id String @id @default(uuid()) pneuId String vidaPneuId String veiculoId String posicaoId String dataMontagem DateTime hodometroMontagem Decimal? @db.Decimal(12,1) dataDesmontagem DateTime? hodometroDesmontagem Decimal? @db.Decimal(12,1) kmRodado Decimal @default(0) @db.Decimal(14,1) usuarioMontagemId String usuarioDesmontagemId String?
+  pneu Pneu @relation(fields:[pneuId], references:[id]) vida VidaPneu @relation(fields:[vidaPneuId], references:[id]) veiculo Veiculo @relation(fields:[veiculoId], references:[id]) posicao PosicaoConfiguracao @relation(fields:[posicaoId], references:[id]) usuarioMontagem Usuario @relation("MontagemUsuario", fields:[usuarioMontagemId], references:[id]) usuarioDesmontagem Usuario? @relation("DesmontagemUsuario", fields:[usuarioDesmontagemId], references:[id])
+  createdAt DateTime @default(now()) updatedAt DateTime @updatedAt
+  @@index([veiculoId,posicaoId,dataDesmontagem]) @@map("montagens_pneu")
+}
+model LeituraHodometro { id String @id @default(uuid()) veiculoId String hodometro Decimal @db.Decimal(12,1) dataLeitura DateTime origem OrigemHodometro usuarioId String veiculo Veiculo @relation(fields:[veiculoId], references:[id], onDelete:Cascade) usuario Usuario @relation(fields:[usuarioId], references:[id]) createdAt DateTime @default(now()) @@index([veiculoId,dataLeitura]) @@map("leituras_hodometro") }
+
+model MovimentacaoPneu {
+  id String @id @default(uuid())
+  codigo Int
+  documento Int
+  pneuId String
+  estoqueOrigemId String?
+  estoqueDestinoId String?
+  movimentacaoOriginalId String?
+  statusOrigem StatusPneu?
+  statusDestino StatusPneu?
+  dataMovimentacao DateTime @default(now())
+  usuarioId String
+  observacao String?
+  pneu Pneu @relation(fields:[pneuId], references:[id])
+  estoqueOrigem Estoque? @relation("MovEstoqueOrigem", fields:[estoqueOrigemId], references:[id])
+  estoqueDestino Estoque? @relation("MovEstoqueDestino", fields:[estoqueDestinoId], references:[id])
+  movimentacaoOriginal MovimentacaoPneu? @relation("EstornoMovimento", fields:[movimentacaoOriginalId], references:[id])
+  estornos MovimentacaoPneu[] @relation("EstornoMovimento")
+  usuario Usuario @relation(fields:[usuarioId], references:[id])
+  createdAt DateTime @default(now())
+  @@index([codigo,documento]) @@index([pneuId,dataMovimentacao]) @@map("movimentacoes_pneu")
+}
+
+model InspecaoPneu {
+  id String @id @default(uuid()) pneuId String montagemId String? sulco1 Decimal @db.Decimal(5,2) sulco2 Decimal @db.Decimal(5,2) sulco3 Decimal @db.Decimal(5,2) sulco4 Decimal @db.Decimal(5,2) menorSulco Decimal @db.Decimal(5,2) status StatusInspecao prazoAcao DateTime dataInspecao DateTime @default(now()) usuarioId String observacao String?
+  pneu Pneu @relation(fields:[pneuId], references:[id]) usuario Usuario @relation(fields:[usuarioId], references:[id])
+  @@index([pneuId,dataInspecao]) @@index([status,prazoAcao]) @@map("inspecoes_pneu")
+}
+
+model CalibragemEquipamento {
+  id String @id @default(uuid()) veiculoId String dataCalibragem DateTime @default(now()) hodometro Decimal? @db.Decimal(12,1) horimetro Decimal? @db.Decimal(12,1) usuarioId String observacao String?
+  veiculo Veiculo @relation(fields:[veiculoId], references:[id]) usuario Usuario @relation(fields:[usuarioId], references:[id])
+  @@index([veiculoId,dataCalibragem]) @@map("calibragens_equipamento")
+}
+
+model LoteReforma {
+  id String @id @default(uuid()) numero Int @unique fornecedorId String dataEnvio DateTime @default(now()) prazoRetorno DateTime status StatusLote @default(ABERTO) usuarioId String observacao String?
+  fornecedor Fornecedor @relation(fields:[fornecedorId], references:[id]) usuario Usuario @relation(fields:[usuarioId], references:[id]) itens LoteReformaItem[]
+  createdAt DateTime @default(now()) updatedAt DateTime @updatedAt
+  @@map("lotes_reforma")
+}
+model LoteReformaItem {
+  id String @id @default(uuid()) loteId String pneuId String desenhoSolicitado String? resultado ResultadoReforma? materialNovoId String? novaMilimetragem Decimal? @db.Decimal(5,2) valorReforma Decimal? @db.Decimal(14,2) dataRetorno DateTime?
+  lote LoteReforma @relation(fields:[loteId], references:[id], onDelete:Cascade) pneu Pneu @relation(fields:[pneuId], references:[id]) materialNovo Material? @relation("ReformaMaterialNovo", fields:[materialNovoId], references:[id])
+  @@unique([loteId,pneuId]) @@map("lote_reforma_itens")
+}
+
+model LoteTransferencia {
+  id String @id @default(uuid()) numero Int @unique estoqueOrigemId String estoqueDestinoId String dataEnvio DateTime @default(now()) dataRecebimento DateTime? status StatusLote @default(ABERTO) usuarioId String
+  estoqueOrigem Estoque @relation("LoteEstoqueOrigem", fields:[estoqueOrigemId], references:[id]) estoqueDestino Estoque @relation("LoteEstoqueDestino", fields:[estoqueDestinoId], references:[id]) usuario Usuario @relation(fields:[usuarioId], references:[id]) itens LoteTransferenciaItem[]
+  @@map("lotes_transferencia")
+}
+model LoteTransferenciaItem { id String @id @default(uuid()) loteId String pneuId String recebido Boolean @default(false) lote LoteTransferencia @relation(fields:[loteId], references:[id], onDelete:Cascade) pneu Pneu @relation(fields:[pneuId], references:[id]) @@unique([loteId,pneuId]) @@map("lote_transferencia_itens") }
+
+model AnaliseSucata {
+  id String @id @default(uuid()) pneuId String classificacao ClassificacaoPerda motivo String dataAnalise DateTime @default(now()) menorSulco Decimal? @db.Decimal(5,2) valorPerda Decimal? @db.Decimal(14,2) usuarioId String observacao String?
+  pneu Pneu @relation(fields:[pneuId], references:[id]) usuario Usuario @relation(fields:[usuarioId], references:[id])
+  @@index([classificacao,dataAnalise]) @@map("analises_sucata")
+}
+
+model FotoPneu { id String @id @default(uuid()) pneuId String tipo TipoFotoPneu urlArquivo String dataFoto DateTime @default(now()) usuarioId String pneu Pneu @relation(fields:[pneuId], references:[id], onDelete:Cascade) usuario Usuario @relation(fields:[usuarioId], references:[id]) createdAt DateTime @default(now()) @@index([pneuId,tipo]) @@map("fotos_pneu") }
+model Auditoria { id String @id @default(uuid()) usuarioId String entidade String entidadeId String acao String dadosAnteriores Json? dadosNovos Json? dataHora DateTime @default(now()) usuario Usuario @relation(fields:[usuarioId], references:[id]) @@index([entidade,entidadeId,dataHora]) @@map("auditoria") }
+model SequencialNumeroFogo { ano Int mes Int ultimoSequencial Int @default(0) updatedAt DateTime @updatedAt @@id([ano,mes]) @@map("sequenciais_numero_fogo") }
+model SequencialDocumento { codigo Int @id ultimoSequencial Int @default(0) updatedAt DateTime @updatedAt @@map("sequenciais_documento") }
