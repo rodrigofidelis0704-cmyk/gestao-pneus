@@ -24,7 +24,6 @@ export default function SucataPage(){
   const [motivos,setMotivos]=useState<Lookup[]>([]);
   const [analises,setAnalises]=useState<Analise[]>([]);
   const [principal,setPrincipal]=useState('');
-  const [secundario,setSecundario]=useState('');
   const [local,setLocal]=useState('BANDA');
   const [rbr,setRbr]=useState('3.00');
   const [qtdConsertos,setQtdConsertos]=useState('0');
@@ -89,7 +88,6 @@ export default function SucataPage(){
   async function concluirAnalise(){
     if(!pneu||!vida){setErro('Localize um pneu antes de iniciar a análise.');return;}
     if(!principal){setErro('Informe o motivo principal.');return;}
-    if(secundario&&secundario===principal){setErro('Motivo secundário deve ser diferente do principal.');return;}
     if(!files.VISTA_GERAL||!files.NUMERO_FOGO||!files.DANO){setErro('As três fotos são obrigatórias: vista geral, número a fogo e dano.');return;}
     setBusy(true);setErro('');setMsg('');
     try{
@@ -104,7 +102,7 @@ export default function SucataPage(){
         material_reforma_id:vida.numero_vida>1?vida.material_inicio_id:null,material_reforma_texto:materialTexto,
         reformador_id:vida.fornecedor_reforma_id||null,reformador_texto:reformadorTexto,
         ultimo_veiculo_id:ultimoVeiculo?.id||null,ultimo_equipamento_texto:equipamento,
-        local_dano_codigo:local,rbr_mm:Number(rbr),motivo_sucata_id:principal,motivo_secundario_id:secundario||null,
+        local_dano_codigo:local,rbr_mm:Number(rbr),motivo_sucata_id:principal,
         quantidade_consertos:Number(qtdConsertos),numero_vida:vida.numero_vida,
         valor_compra_original:Number(vida1?.valor_investimento||0),valor_reforma_atual:vida.numero_vida>1?Number(vida.valor_investimento||0):0,
         mm_original_vida:Number(pneu.milimetragem_original||0),responsavel_analise_id:userData.user.id,
@@ -153,7 +151,6 @@ export default function SucataPage(){
 
     {pneu&&<section className="section"><div className="sectionHead"><div className="sectionTitle">2. Diagnóstico técnico</div></div><div className="formGrid">
       <label>Motivo principal<select value={principal} onChange={e=>setPrincipal(e.target.value)}><option value="">Selecione</option>{motivos.map(m=><option key={m.id} value={m.id}>{m.codigo} · {m.descricao}</option>)}</select></label>
-      <label>Motivo secundário<select value={secundario} onChange={e=>setSecundario(e.target.value)}><option value="">Sem motivo secundário</option>{motivos.filter(m=>m.id!==principal).map(m=><option key={m.id} value={m.id}>{m.codigo} · {m.descricao}</option>)}</select></label>
       <label>Local do dano<select value={local} onChange={e=>setLocal(e.target.value)}>{locais.map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
       <label>RBR restante<select value={rbr} onChange={e=>setRbr(e.target.value)}>{rbrs.map(v=><option key={v} value={v}>{Number(v).toFixed(1)} mm</option>)}</select></label>
       <label>Quantidade de consertos<select value={qtdConsertos} onChange={e=>setQtdConsertos(e.target.value)}>{consertos.map(v=><option key={v} value={v}>{v}</option>)}</select></label>
